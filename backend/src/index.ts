@@ -1,5 +1,19 @@
-import express from "express";
+import express from "express"
+import http from "http"
+import SignalingServer from "./signalingServer";
+import { createRouter, createWorker } from "./mediasoup";
+import { config } from "dotenv";
+
+config()
 
 const app = express()
+const server = http.createServer(app)
 
-app.listen(3001, () => console.log("server is running on port 3001"))
+  ; (async () => {
+    await createWorker()
+    await createRouter()
+
+    SignalingServer(server)
+  })()
+
+server.listen(process.env.PORT, () => { console.log("server is listening on port ", process.env.PORT) })
