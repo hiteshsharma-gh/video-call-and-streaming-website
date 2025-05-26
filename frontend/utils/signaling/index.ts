@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 'use client';
 
 import {
@@ -20,42 +19,42 @@ import {
 } from 'mediasoup-client/types';
 import { INCOMING_EVENT_NAMES, OUTGOING_EVENT_NAMES } from './constants';
 
+type Params = {
+  encoding: {
+    rid: string;
+    maxBitrate: number;
+    scalabilityMode: string;
+  }[];
+  codecOptions: {
+    videoGoogleStartBitrate: number;
+  };
+  track?: MediaStreamTrack;
+};
+
 export function useSignalingServer(roomId: string) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const [videoRefs, setVideoRefs] = useState<RefObject<HTMLVideoElement | null>[]>([]);
 
-  const client = useRef<{
-    params: {
-      encoding?: {
-        rid: string;
-        maxBitrate: number;
-        scalabilityMode: string;
-      }[];
-      codecOptions?: {
-        videoGoogleStartBitrate: number;
-      };
-      track?: MediaStreamTrack;
-    };
-    socket?: WebSocket;
-    device?: Device;
-    rtpCapabilities?: RtpCapabilities
-    consumerTransport?: Transport;
-    producerTransport?: Transport;
-  }>({
-    params: {
-      encoding: [
-        { rid: 'r0', maxBitrate: 100000, scalabilityMode: 'S1T3' },
-        { rid: 'r1', maxBitrate: 300000, scalabilityMode: 'S1T3' },
-        { rid: 'r2', maxBitrate: 900000, scalabilityMode: 'S1T3' },
-      ],
-      codecOptions: {
-        videoGoogleStartBitrate: 1000,
-      },
-    },
+  const [params, setParams] = useState<Params>({
+    encoding: [
+      { rid: 'r0', maxBitrate: 100000, scalabilityMode: 'S1T3' }, // Lowest quality layer
+      { rid: 'r1', maxBitrate: 300000, scalabilityMode: 'S1T3' }, // Middle quality layer
+      { rid: 'r2', maxBitrate: 900000, scalabilityMode: 'S1T3' }, // Highest quality layer
+    ],
+    codecOptions: { videoGoogleStartBitrate: 1000 }, // Initial bitrate
+    track: undefined,
   });
 
+  const [socket, setSocket] = useState<WebSocket | undefined>(undefined);
+  const [device, setDevice] = useState<Device | undefined>(undefined);
+  const rtpCapabilities = useRef<RtpCapabilities>(undefined)
+  const [producerTransport, setProducerTransport] =
+    useState<Transport | undefined>(undefined);
+  const [consumerTransport, setConsumerTransport] =
+    useState<Transport | undefined>(undefined);
   const [consumerList, setConsumerList] = useState<Record<string, Consumer>>({});
-  const [isProducerTransportConnected, setIsProducerTransportConnected] = useState<boolean>(false)
+  const [isProducerTransportConnected, setIsProducerTransportConnected] =
+    useState(false);
 
   const startCamera = useCallback(async () => {
     try {
@@ -65,7 +64,7 @@ export function useSignalingServer(roomId: string) {
       if (localVideoRef?.current) {
         localVideoRef.current.srcObject = videoStream;
         const track = videoStream?.getVideoTracks()[0];
-        client.current.params = { ...client.current.params, track }
+        setParams((current) => ({ ...current, track }));
       }
     } catch (error) {
       console.error('Error in starting camera: ', error);
@@ -85,7 +84,7 @@ export function useSignalingServer(roomId: string) {
         routerRtpCapabilities: rtpCapabilities,
       });
 
-      client.current.device = newDevice
+      setDevice(newDevice);
       return newDevice;
     } catch (error) {
       console.error('Error while creating Mediasoup Device: ', error);
@@ -93,8 +92,8 @@ export function useSignalingServer(roomId: string) {
     }
   }
 
-  async function connectSendTransport() {
-    const producer = await client.current.producerTransport?.produce(client.current.params);
+  const connectSendTransport = useCallback(async () => {
+    const producer = await producerTransport?.produce(params);
 
     producer?.on('trackended', () => {
       console.log('trackended');
@@ -103,14 +102,14 @@ export function useSignalingServer(roomId: string) {
     producer?.on('transportclose', () => {
       console.log('transportclose');
     });
-  }
+  }, [params, producerTransport])
 
   useEffect(() => {
     let triggerCallbackFromOutside: ((data: unknown) => void) | null = null;
 
-    if (!client.current.socket) {
+    if (!socket) {
       const newSocket = new WebSocket('ws://localhost:8000');
-      client.current.socket = newSocket
+      setSocket(newSocket);
 
       newSocket.onopen = (event) => {
         console.log('socket open: ', event);
@@ -143,7 +142,7 @@ export function useSignalingServer(roomId: string) {
 
             case INCOMING_EVENT_NAMES.ROUTER_RTP_CAPABILITIES: {
               console.log('router rtp capabilities: ', data.rtpCapabilities);
-              client.current.rtpCapabilities = data.rtpCapabilities
+              rtpCapabilities.current = data.rtpCapabilities as RtpCapabilities;
               createDevice(data.rtpCapabilities)
 
               if (newSocket.readyState === WebSocket.OPEN) {
@@ -174,21 +173,14 @@ export function useSignalingServer(roomId: string) {
             case INCOMING_EVENT_NAMES.TRANSPORT_CREATED: {
               console.log("transport created in server")
               if (data.sender) {
-                let currentDevice = client.current.device;
+                let currentDevice = device;
                 if (!currentDevice) {
-                  console.log("router rtp capabilities: ", client.current.rtpCapabilities)
-                  if (client.current.rtpCapabilities) {
-                    currentDevice = await createDevice(client.current.rtpCapabilities)
-                  } else {
-                    console.error("rtpCapabilities undefined")
-                  }
+                  console.log("router rtp capabilities: ", rtpCapabilities)
+                  currentDevice = await createDevice(rtpCapabilities.current as RtpCapabilities)
                 }
 
                 const transport = currentDevice?.createSendTransport({
-                  id: data.id,
-                  iceParameters: data.iceParameters,
-                  iceCandidates: data.iceCandidates,
-                  dtlsParameters: data.dtlsParameters,
+                  ...data.params
                 });
 
                 console.log(
@@ -257,25 +249,18 @@ export function useSignalingServer(roomId: string) {
                   }
                 );
 
-                client.current.producerTransport = transport
+                setProducerTransport(transport);
               } else {
-                let currentDevice = client.current.device;
+                let currentDevice = device;
                 if (!currentDevice) {
-                  if (client.current.rtpCapabilities) {
-                    currentDevice = await createDevice(client.current.rtpCapabilities)
-                  } else {
-                    console.error("rtpCapabilities undefined")
-                  }
+                  currentDevice = await createDevice(rtpCapabilities.current as RtpCapabilities)
                 }
 
                 const transport = currentDevice?.createRecvTransport({
-                  id: data.id,
-                  iceParameters: data.iceParameters,
-                  iceCandidates: data.iceCandidates,
-                  dtlsParameters: data.dtlsParameters,
+                  ...data.params
                 });
 
-                client.current.consumerTransport = transport
+                setConsumerTransport(transport);
 
                 transport?.on(
                   'connect',
@@ -321,7 +306,7 @@ export function useSignalingServer(roomId: string) {
                 JSON.stringify({
                   event: OUTGOING_EVENT_NAMES.CONSUME_MEDIA,
                   data: {
-                    rtpCapabilities: client.current.rtpCapabilities,
+                    rtpCapabilities,
                     producerId: data.id,
                   },
                 })
@@ -333,13 +318,13 @@ export function useSignalingServer(roomId: string) {
             case INCOMING_EVENT_NAMES.EXISTING_CLIENTS_LIST: {
               console.log('existing clients list: ', data.existingClients);
 
-              for (const Client of data.existingClients) {
+              for (const client of data.existingClients) {
                 newSocket.send(
                   JSON.stringify({
                     event: OUTGOING_EVENT_NAMES.CONSUME_MEDIA,
                     data: {
-                      rtpCapabilities: client.current.rtpCapabilities,
-                      producerId: Client,
+                      rtpCapabilities,
+                      producerId: client,
                     },
                   })
                 );
@@ -349,11 +334,8 @@ export function useSignalingServer(roomId: string) {
             }
 
             case INCOMING_EVENT_NAMES.CONSUMING_MEDIA: {
-              const consumer = await client.current.consumerTransport?.consume({
-                id: data.id,
-                kind: data.kind,
-                rtpParameters: data.rtpParameters,
-                producerId: data.producerId,
+              const consumer = await consumerTransport?.consume({
+                ...data.params
               });
 
               if (consumer) {
@@ -390,14 +372,19 @@ export function useSignalingServer(roomId: string) {
 
       newSocket.onclose = () => {
         console.log('WebSocket connection closed');
-        client.current.socket = undefined
+        setSocket(undefined);
 
+        newSocket.send(JSON.stringify({
+          event: OUTGOING_EVENT_NAMES.DISCONNECT
+        }))
       };
 
       return () => {
+        // console.log('Closing WebSocket connection');
+        // newSocket.close();
       };
     }
-  }, []);
+  }, [socket, consumerTransport, device, roomId, startCamera]);
 
   useEffect(() => {
     const newRefs: typeof videoRefs = []
@@ -418,17 +405,23 @@ export function useSignalingServer(roomId: string) {
   }, [consumerList]);
 
   useEffect(() => {
-    console.log('producerTransport===', client.current.producerTransport);
+    if (rtpCapabilities && !device) {
+      createDevice(rtpCapabilities.current as RtpCapabilities);
+    }
+  }, [rtpCapabilities, device]);
+
+  useEffect(() => {
+    console.log('producerTransport===', producerTransport);
     if (
-      client.current.device &&
-      client.current.producerTransport &&
-      client.current.params?.track &&
+      device &&
+      producerTransport &&
+      params?.track &&
       !isProducerTransportConnected
     ) {
       setIsProducerTransportConnected(true);
       connectSendTransport();
     }
-  }, [isProducerTransportConnected]);
+  }, [device, producerTransport, params, isProducerTransportConnected, connectSendTransport]);
 
   return {
     localVideoRef,
