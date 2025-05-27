@@ -1,17 +1,18 @@
 'use client'
 
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { INCOMING_EVENT_NAMES, OUTGOING_EVENT_NAMES } from "@/utils/signaling/constants";
 import { Device } from "mediasoup-client";
 import { Consumer, DtlsParameters, MediaKind, RtpCapabilities, RtpParameters, Transport } from "mediasoup-client/types";
 import { useParams } from "next/navigation"
-import { RefObject, useEffect, useRef, useState } from "react";
+import { createRef, RefObject, useCallback, useEffect, useRef, useState } from "react";
 
 export default function Room() {
   const pathParams = useParams<{ roomId: string }>()
   const { roomId } = pathParams
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const [videoRefs, setVideoRefs] = useState<RefObject<HTMLVideoElement | null>[]>([]);
+  const [videoRefs, setVideoRefs] = useState<Record<string, RefObject<HTMLVideoElement | null>>>({});
 
   type Params = {
     encoding: {
@@ -35,18 +36,140 @@ export default function Room() {
   });
 
   const socketRef = useRef<WebSocket | undefined>(undefined)
+  const triggerCallbackAcrossEventsRef = useRef<(data: unknown) => void | undefined>(undefined)
+
   const [device, setDevice] = useState<Device | undefined>(undefined);
-  const [RtpCapabilities, setRtpCapabilities] = useState<RtpCapabilities | undefined>(undefined)
+  const [rtpCapabilities, setRtpCapabilities] = useState<RtpCapabilities | undefined>(undefined)
   const [producerTransport, setProducerTransport] = useState<Transport | undefined>(undefined);
   const [consumerTransport, setConsumerTransport] = useState<Transport | undefined>(undefined);
   const [consumerList, setConsumerList] = useState<Record<string, Consumer>>({});
 
-  socketRef.current = new WebSocket('ws://localhost:8000');
+  async function startCamera() {
+    try {
+      const videoStream = await navigator.mediaDevices?.getUserMedia({
+        video: true,
+      });
+      if (localVideoRef?.current) {
+        localVideoRef.current.srcObject = videoStream;
+        const track = videoStream?.getVideoTracks()[0];
+        setParams((current) => ({ ...current, track }));
+      }
+
+      console.log("camera started")
+    } catch (error) {
+      console.error('Error in accessing camera: ', error);
+    }
+  }
+
+  const createDevice = useCallback(async () => {
+    try {
+      const newDevice = new Device()
+
+      if (!rtpCapabilities) {
+        console.error("rtp capabilities is undefined in createDevice")
+        return
+      }
+      await newDevice.load({ routerRtpCapabilities: rtpCapabilities })
+      setDevice(newDevice)
+
+      console.log("device created and loaded: ", newDevice)
+    } catch (error) {
+      console.error("error in create device", error)
+    }
+  }, [rtpCapabilities])
+
+  async function createSendTransport() {
+    const socket = socketRef.current
+
+    if (!socket) {
+      console.error("socket is undefined in createSendTransport")
+      return
+    }
+
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        event: OUTGOING_EVENT_NAMES.CREATE_TRANSPORT,
+        data: {
+          sender: true
+        }
+      }))
+    } else {
+      console.error("socket is not ready in createSendTransport")
+    }
+  }
+
+  const connectSendTransport = useCallback(async () => {
+    if (!producerTransport) {
+      console.error("producer transport is undefined in connectSendTransport")
+      return
+    }
+
+    const producer = await producerTransport.produce(params)
+    console.log("producerTransport connected")
+
+    producer.on('trackended', () => {
+      console.log("trackended")
+    })
+    producer.on('transportclose', () => {
+      console.log("transportclose")
+    })
+  }, [params, producerTransport])
+
+  const createRecvTransport = useCallback(async () => {
+    const socket = socketRef.current
+
+    if (!socket) {
+      console.error("socket is undefined in createSendTransport")
+      return
+    }
+
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        event: OUTGOING_EVENT_NAMES.CREATE_TRANSPORT,
+        data: {
+          sender: false
+        }
+      }))
+    } else {
+      console.error("socket is not ready in createSendTransport")
+    }
+  }, [])
+
+  const connectRecvTransport = useCallback(async (newClientId: string) => {
+    const socket = socketRef.current
+
+    if (!socket) {
+      console.error("socket is undefined in createSendTransport")
+      return
+    }
+
+    if (socket.readyState === WebSocket.OPEN) {
+      if (!device) {
+        console.log("device is undefined in connectRecvTransport")
+        return
+      }
+
+      socket.send(JSON.stringify({
+        event: OUTGOING_EVENT_NAMES.CONSUME_MEDIA,
+        data: {
+          rtpCapabilities: device.rtpCapabilities,
+          producerId: newClientId,
+        }
+      }))
+    } else {
+      console.error("socket is not ready in createSendTransport")
+    }
+  }, [device])
+
+
+  useEffect(() => {
+    if (!socketRef.current) {
+      socketRef.current = new WebSocket('ws://localhost:8000');
+    }
+  }, [])
 
   useEffect(() => {
     const socket = socketRef.current
-
-    let triggerCallbackFromOutside: ((data: unknown) => void) | null = null;
 
     if (!socket) {
       console.error("socket is undefined in the beginning")
@@ -116,11 +239,12 @@ export default function Room() {
                           },
                         })
                       );
-
-                      callback();
                     } else {
-                      console.log("socket is not ready yet in producerTransport transport.on connect")
+                      console.error("socket is not ready yet in producerTransport transport.on connect")
+                      return
                     }
+
+                    callback();
                   } catch (error) {
                     errback(error as Error);
                   }
@@ -152,7 +276,7 @@ export default function Room() {
                       return
                     }
 
-                    triggerCallbackFromOutside = callback as (data: unknown) => void;
+                    triggerCallbackAcrossEventsRef.current = callback as (data: unknown) => void;
                   } catch (error) {
                     errback(error as Error);
                   }
@@ -202,13 +326,58 @@ export default function Room() {
             break;
           }
 
+          case INCOMING_EVENT_NAMES.NEW_PRODUCER_TRANSPORT_CREATED: {
+            const { newClientId } = data
+            console.log("new producer connected: ", newClientId)
+
+            connectRecvTransport(newClientId)
+
+            break;
+          }
+
+          case INCOMING_EVENT_NAMES.CONSUMING_MEDIA: {
+            if (!consumerTransport) {
+              console.error("consumerTransport is undefined in CONSUMING_MEDIA event")
+              return
+            }
+
+            const consumer = await consumerTransport.consume(data.params)
+            console.log("consuming media: ", consumer)
+
+            const { track } = consumer
+            console.log("track: ", track)
+
+            setConsumerList((prev) => ({ ...prev, [data.params.producerId]: consumer }))
+
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({
+                event: OUTGOING_EVENT_NAMES.RESUME_CONSUME,
+              }))
+            } else {
+              console.error("socket is not ready in createSendTransport")
+            }
+
+            break;
+          }
+
+          case INCOMING_EVENT_NAMES.EXISTING_CLIENTS_LIST: {
+            console.log("existing clents: ", data.existingClients)
+
+            for (const client of data.existingClients) {
+              connectRecvTransport(client)
+            }
+
+            break;
+          }
+
           case INCOMING_EVENT_NAMES.PRODUCING_MEDIA: {
-            if (!triggerCallbackFromOutside) {
+            if (!triggerCallbackAcrossEventsRef.current) {
               console.error("triggerCallbackFromOutside is null")
               return
             }
 
-            triggerCallbackFromOutside({ id: data.id });
+            triggerCallbackAcrossEventsRef.current({ id: data.id });
+            console.log("producing media")
 
             break;
           }
@@ -219,68 +388,80 @@ export default function Room() {
         return;
       }
     }
-  }, [roomId, device])
+  }, [roomId, device, consumerTransport, producerTransport, connectRecvTransport])
 
-  async function startCamera() {
-    try {
-      const videoStream = await navigator.mediaDevices?.getUserMedia({
-        video: true,
-      });
-      if (localVideoRef?.current) {
-        localVideoRef.current.srcObject = videoStream;
-        const track = videoStream?.getVideoTracks()[0];
-        setParams((current) => ({ ...current, track }));
+  useEffect(() => {
+    if (rtpCapabilities && !device) {
+      createDevice()
+    }
+  }, [rtpCapabilities, device, createDevice])
+
+  useEffect(() => {
+    createSendTransport()
+    createRecvTransport()
+  }, [createRecvTransport])
+
+  useEffect(() => {
+    const newRefs: Record<string, RefObject<HTMLVideoElement | null>> = {};
+
+    Object.keys(consumerList).forEach((producerId) => {
+      if (!videoRefs[producerId]) {
+        newRefs[producerId] = createRef<HTMLVideoElement>();
       }
+    });
 
-      console.log("camera started")
-    } catch (error) {
-      console.error('Error in accessing camera: ', error);
+    if (Object.keys(newRefs).length > 0) {
+      setVideoRefs((prev) => ({ ...prev, ...newRefs }));
     }
-  }
+  }, [consumerList, videoRefs]);
 
-  async function createDevice() {
-    try {
-      const newDevice = new Device()
+  useEffect(() => {
+    Object.entries(consumerList).forEach(([producerId, consumer]) => {
+      const videoRef = videoRefs[producerId];
+      if (videoRef?.current && consumer.track) {
+        const stream = new MediaStream([consumer.track]);
+        videoRef.current.srcObject = stream;
 
-      if (!RtpCapabilities) {
-        console.error("rtp capabilities is undefined in createDevice")
-        return
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().then(() => console.log("playback started")).catch((err) => {
+            console.error("Video play error", err);
+          });
+        };
       }
-      await newDevice.load({ routerRtpCapabilities: RtpCapabilities })
-      setDevice(newDevice)
-
-      console.log("device created and loaded: ", newDevice)
-    } catch (error) {
-      console.error("error in create device", error)
-    }
-  }
-
-  async function createSendTransport() {
-    const socket = socketRef.current
-
-    if (!socket) {
-      console.error("socket is undefined in createSendTransport")
-      return
-    }
-
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({
-        event: OUTGOING_EVENT_NAMES.CREATE_TRANSPORT,
-        data: {
-          sender: true
-        }
-      }))
-    } else {
-      console.error("socket is not ready in createSendTransport")
-    }
-  }
+    });
+  }, [consumerList, videoRefs]);
 
   return (
     <main>
-      <video ref={localVideoRef} id="localvideo" autoPlay playsInline />
+      < div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" >
+        <Card>
+          <CardContent>
+            <video ref={localVideoRef} autoPlay playsInline muted />
+          </CardContent>
+          <CardTitle className="text-center">You (local)</CardTitle>
+        </Card>
+
+        {
+          Object.keys(consumerList).map((producerId) => (
+            <Card key={producerId}>
+              <CardContent>
+                <video
+                  ref={videoRefs[producerId]}
+                  autoPlay
+                  playsInline
+                />
+              </CardContent>
+              <CardTitle className="text-center">{producerId}</CardTitle>
+            </Card>
+          ))
+        }
+
+      </div >;
       <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
         <button onClick={createDevice}>Create Device</button>
         <button onClick={createSendTransport}>Create Send Transport</button>
+        <button onClick={connectSendTransport}>Connect Send Transport</button>
+        <button onClick={createRecvTransport}>Create Recv Transport</button>
       </div>
     </main>
   );
