@@ -1,15 +1,16 @@
 import express from 'express';
 import { Server } from 'http';
-import { Mediasoup } from './mediasoup/index';
 import { SignalingServer } from './signaling/index';
 import { config } from 'dotenv';
+import cors from 'cors';
 
 config();
 
 const app = express();
+app.use(cors());
+
 const httpServer = new Server(app);
 
-Mediasoup.getWorker();
 new SignalingServer(httpServer).init();
 
 httpServer.listen(process.env.PORT, () => {

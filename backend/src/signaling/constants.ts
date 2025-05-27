@@ -12,6 +12,7 @@ export enum OUTGOING_EVENT_NAMES {
   CONNECTION_SUCCESS = 'connection-success',
   ROUTER_RTP_CAPABILITIES = 'router-rtp-capabilities',
   TRANSPORT_CREATED = 'transport-created',
+  NEW_PRODUCER_TRANSPORT_CREATED = 'new-producer-transport-created',
   EXISTING_CLIENTS_LIST = 'existing-clients-list',
   PRODUCING_MEDIA = 'producing-media',
   CONSUMING_MEDIA = 'consuming-media',

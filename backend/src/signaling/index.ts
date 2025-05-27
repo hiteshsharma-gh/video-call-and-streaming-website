@@ -11,6 +11,7 @@ export class SignalingServer {
   private clients: Map<
     string,
     {
+      socket?: ExtWebSocket;
       roomId?: string;
       router?: MediasoupTypes.Router;
       consumers?: MediasoupTypes.Consumer[];
@@ -39,6 +40,11 @@ export class SignalingServer {
           }),
         );
         console.log('Signaling Server ---- Connection Successful, clientId: ', socket.id);
+
+        socket.on('close', () => {
+          console.log('client closed');
+          this.clients.delete(socket.id);
+        });
 
         socket.on('message', async (message: string) => {
           const { event, data } = JSON.parse(message);
@@ -78,7 +84,6 @@ export class SignalingServer {
             case INCOMING_EVENT_NAMES.CREATE_TRANSPORT: {
               const { sender } = data;
               const client = this.clients.get(socket.id);
-              console.log('Signaling Server ---- create tranport: ', socket.id);
 
               if (client?.router) {
                 if (sender) {
@@ -90,7 +95,12 @@ export class SignalingServer {
                     JSON.stringify({
                       event: OUTGOING_EVENT_NAMES.TRANSPORT_CREATED,
                       data: {
-                        ...transport,
+                        params: {
+                          id: transport.id,
+                          iceParameters: transport.iceParameters,
+                          iceCandidates: transport.iceCandidates,
+                          dtlsParameters: transport.dtlsParameters,
+                        },
                         sender: true,
                       },
                     }),
@@ -105,7 +115,12 @@ export class SignalingServer {
                     JSON.stringify({
                       event: OUTGOING_EVENT_NAMES.TRANSPORT_CREATED,
                       data: {
-                        ...transport,
+                        params: {
+                          id: transport.id,
+                          iceParameters: transport.iceParameters,
+                          iceCandidates: transport.iceCandidates,
+                          dtlsParameters: transport.dtlsParameters,
+                        },
                         sender: false,
                       },
                     }),
@@ -148,6 +163,26 @@ export class SignalingServer {
                 await client?.producerTransport?.connect({ dtlsParameters });
 
                 console.log('Signaling Server ---- Producer Transport connected');
+
+                const roomId = this.clients.get(socket.id)?.roomId;
+
+                for (const client of this.clients.values()) {
+                  if (client.roomId === roomId) {
+                    if (client.socket !== socket && client.socket?.readyState === WebSocket.OPEN) {
+                      client.socket.send(
+                        JSON.stringify({
+                          event: OUTGOING_EVENT_NAMES.NEW_PRODUCER_TRANSPORT_CREATED,
+                          data: {
+                            newClientId: socket.id,
+                          },
+                        }),
+                      );
+                      console.log(
+                        'Signaling Server ---- new producer transport created event sent',
+                      );
+                    }
+                  }
+                }
               } else {
                 if (!client?.consumerTransport) {
                   console.log('Signaling Server ---- Transport not found');
@@ -179,7 +214,15 @@ export class SignalingServer {
                 client.producer = producer;
               }
 
-              socket.send(JSON.stringify({ id: producer?.id }));
+              socket.send(
+                JSON.stringify({
+                  event: OUTGOING_EVENT_NAMES.PRODUCING_MEDIA,
+                  data: {
+                    id: producer?.id,
+                  },
+                }),
+              );
+              console.log('Signaling Server ---- Producing media');
 
               break;
             }
@@ -204,6 +247,7 @@ export class SignalingServer {
                   }
 
                   const consumer = await client.consumerTransport?.consume({
+                    paused: true,
                     rtpCapabilities,
                     producerId: producer.id,
                   });
@@ -220,19 +264,29 @@ export class SignalingServer {
                   socket.send(
                     JSON.stringify({
                       event: OUTGOING_EVENT_NAMES.CONSUMING_MEDIA,
-                      data: consumer,
+                      data: {
+                        params: {
+                          producerId: producer.id,
+                          id: consumer?.id,
+                          kind: consumer?.kind,
+                          rtpParameters: consumer?.rtpParameters,
+                        },
+                      },
                     }),
                   );
+                  console.log('Signaling Server ---- Consuming media');
                 }
               }
               break;
             }
+
             case INCOMING_EVENT_NAMES.RESUME_CONSUME: {
               const client = this.clients.get(socket.id);
 
               client?.consumers?.forEach((consumer) => {
                 consumer.resume();
               });
+              console.log('Signaling Server ---- resuming consume');
 
               break;
             }
