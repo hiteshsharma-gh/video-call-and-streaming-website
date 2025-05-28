@@ -32,6 +32,7 @@ export class SignalingServer {
     try {
       this.wss.on('connection', (socket: ExtWebSocket) => {
         socket.id = uuid();
+        this.clients.set(socket.id, { socket });
 
         socket.send(
           JSON.stringify({
@@ -48,6 +49,7 @@ export class SignalingServer {
 
         socket.on('message', async (message: string) => {
           const { event, data } = JSON.parse(message);
+          console.log('Signaling Server ---- event recieved: ', event, socket.id);
 
           switch (event) {
             case INCOMING_EVENT_NAMES.JOIN_ROOM: {
@@ -55,15 +57,17 @@ export class SignalingServer {
 
               const router = await this.mediasoupClient.createRouter(roomId);
 
-              console.log('Signaling Server ---- room joined: ', roomId);
+              const client = this.clients.get(socket.id);
+              if (!client) {
+                console.error('Signaling Server ---- client not found');
+                return;
+              }
 
-              this.clients.set(socket.id, {
-                router,
-                roomId,
-              });
+              client.router = router;
+              client.roomId = roomId;
 
               if (!router) {
-                console.log('Signaling Server ---- router not found');
+                console.error('Signaling Server ---- router not found');
                 return;
               }
 
@@ -75,8 +79,6 @@ export class SignalingServer {
                   },
                 }),
               );
-
-              console.log('Signaling Server ---- router rtp capabilities sent');
 
               break;
             }
@@ -105,7 +107,6 @@ export class SignalingServer {
                       },
                     }),
                   );
-                  console.log('Signaling Server ---- Producer Transport created: ', socket.id);
                 } else {
                   const transport = await this.mediasoupClient.createWebRtcTransport(client.router);
 
@@ -125,7 +126,6 @@ export class SignalingServer {
                       },
                     }),
                   );
-                  console.log('Signaling Server ---- Consumer Transport created: ', socket.id);
 
                   const existingClients: string[] = [];
                   this.clients.forEach((_, key) => {
@@ -142,11 +142,9 @@ export class SignalingServer {
                       },
                     }),
                   );
-
-                  console.log('Signaling Server ---- Existing clients list: ', existingClients);
                 }
               } else {
-                console.log('Signaling Server ---- connection not created yet');
+                console.error('Signaling Server ---- connection not created yet');
               }
               break;
             }
@@ -157,19 +155,25 @@ export class SignalingServer {
 
               if (sender) {
                 if (!client?.producerTransport) {
-                  console.log('Signaling Server ---- Transport not found');
+                  console.error('Signaling Server ---- Transport not found');
                 }
 
                 await client?.producerTransport?.connect({ dtlsParameters });
 
-                console.log('Signaling Server ---- Producer Transport connected');
-
                 const roomId = this.clients.get(socket.id)?.roomId;
 
-                for (const client of this.clients.values()) {
-                  if (client.roomId === roomId) {
-                    if (client.socket !== socket && client.socket?.readyState === WebSocket.OPEN) {
-                      client.socket.send(
+                if (!roomId) {
+                  console.error('Signaling Server ---- roomId is undefined');
+                }
+
+                for (const user of this.clients.values()) {
+                  if (user.roomId === roomId) {
+                    if (!user.socket) {
+                      console.error('user socket is undefined');
+                      return;
+                    }
+                    if (user.socket !== socket && user.socket.readyState === WebSocket.OPEN) {
+                      user.socket.send(
                         JSON.stringify({
                           event: OUTGOING_EVENT_NAMES.NEW_PRODUCER_TRANSPORT_CREATED,
                           data: {
@@ -177,20 +181,15 @@ export class SignalingServer {
                           },
                         }),
                       );
-                      console.log(
-                        'Signaling Server ---- new producer transport created event sent',
-                      );
                     }
                   }
                 }
               } else {
                 if (!client?.consumerTransport) {
-                  console.log('Signaling Server ---- Transport not found');
+                  console.error('Signaling Server ---- Transport not found');
                 }
 
                 await client?.consumerTransport?.connect({ dtlsParameters });
-
-                console.log('Signaling Server ---- Consumer Transport connected');
               }
               break;
             }
@@ -200,13 +199,12 @@ export class SignalingServer {
               const client = this.clients.get(socket.id);
 
               if (!client?.producerTransport) {
-                console.log('Signaling Server ---- Producer transport not found');
+                console.error('Signaling Server ---- Producer transport not found');
               }
 
               const producer = await client?.producerTransport?.produce({ kind, rtpParameters });
 
               producer?.on('transportclose', () => {
-                console.log('Signaling Server ---- Producer Transport close');
                 producer.close();
               });
 
@@ -222,7 +220,6 @@ export class SignalingServer {
                   },
                 }),
               );
-              console.log('Signaling Server ---- Producing media');
 
               break;
             }
@@ -232,50 +229,58 @@ export class SignalingServer {
               const producerClient = this.clients.get(producerId);
               const client = this.clients.get(socket.id);
 
-              if (producerClient) {
-                const { producer, router } = producerClient;
-
-                if (producer) {
-                  if (!router?.canConsume({ producerId: producer.id, rtpCapabilities })) {
-                    console.error('Signaling Server ---- cannot consume');
-                    return;
-                  }
-
-                  if (!client) {
-                    console.log('Signaling Server ---- Client not found');
-                    return;
-                  }
-
-                  const consumer = await client.consumerTransport?.consume({
-                    rtpCapabilities,
-                    producerId: producer.id,
-                  });
-
-                  consumer?.on('producerclose', () => {
-                    console.log('Signaling Server ---- Producer closed');
-                    consumer.close();
-                  });
-
-                  if (consumer) {
-                    client?.consumers?.push(consumer);
-                  }
-
-                  socket.send(
-                    JSON.stringify({
-                      event: OUTGOING_EVENT_NAMES.CONSUMING_MEDIA,
-                      data: {
-                        params: {
-                          producerId: producer.id,
-                          id: consumer?.id,
-                          kind: consumer?.kind,
-                          rtpParameters: consumer?.rtpParameters,
-                        },
-                      },
-                    }),
-                  );
-                  console.log('Signaling Server ---- Consuming media');
-                }
+              if (!producerClient) {
+                console.error('producer client not found');
+                return;
               }
+
+              const { producer, router } = producerClient;
+              if (!producer) {
+                console.error('producer not found');
+                return;
+              }
+
+              if (!router?.canConsume({ producerId: producer.id, rtpCapabilities })) {
+                console.error('Signaling Server ---- cannot consume');
+                return;
+              }
+
+              if (!client) {
+                console.error('Signaling Server ---- Client not found');
+                return;
+              }
+
+              const consumer = await client.consumerTransport?.consume({
+                rtpCapabilities,
+                producerId: producer.id,
+              });
+
+              if (!consumer) {
+                console.error('Signaling Server ---- consumer not found');
+                return;
+              }
+
+              consumer.on('producerclose', () => {
+                consumer.close();
+              });
+
+              if (consumer) {
+                client.consumers?.push(consumer);
+              }
+
+              socket.send(
+                JSON.stringify({
+                  event: OUTGOING_EVENT_NAMES.CONSUMING_MEDIA,
+                  data: {
+                    params: {
+                      producerId: producer.id,
+                      id: consumer?.id,
+                      kind: consumer?.kind,
+                      rtpParameters: consumer?.rtpParameters,
+                    },
+                  },
+                }),
+              );
               break;
             }
 
@@ -285,20 +290,21 @@ export class SignalingServer {
               client?.consumers?.forEach((consumer) => {
                 consumer.resume();
               });
-              console.log('Signaling Server ---- resuming consume');
 
               break;
             }
 
             case INCOMING_EVENT_NAMES.DISCONNECT: {
               this.clients.delete(socket.id);
-              console.log('Signaling Server ---- User got disconnected: ', socket.id);
             }
           }
         });
       });
     } catch (error) {
-      console.log('Signaling Server ---- Error while connecting to the signaling server: ', error);
+      console.error(
+        'Signaling Server ---- Error while connecting to the signaling server: ',
+        error,
+      );
     }
   }
 }

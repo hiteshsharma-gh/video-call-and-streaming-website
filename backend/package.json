@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm ts-node src/index.ts",
-    "start": "pnpm tsc -b && node ./dist/index.js",
+    "start": "rm -rf dist/ && pnpm tsc -b && node ./dist/index.js",
     "lint:check": "npx prettier . --check",
     "lint:fix": "pnpm exec prettier . --write"
   },

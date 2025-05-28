@@ -52,7 +52,6 @@ export default function useSignalingServer(roomId: string) {
         setParams((current) => ({ ...current, track }));
       }
 
-      console.log("camera started")
     } catch (error) {
       console.error('Error in accessing camera: ', error);
     }
@@ -69,7 +68,6 @@ export default function useSignalingServer(roomId: string) {
       await newDevice.load({ routerRtpCapabilities: rtpCapabilities })
       setDevice(newDevice)
 
-      console.log("device created and loaded: ", newDevice)
     } catch (error) {
       console.error("error in create device", error)
     }
@@ -101,15 +99,8 @@ export default function useSignalingServer(roomId: string) {
       return
     }
 
-    const producer = await producerTransport.produce(params)
-    console.log("producerTransport connected")
+    await producerTransport.produce(params)
 
-    producer.on('trackended', () => {
-      console.log("trackended")
-    })
-    producer.on('transportclose', () => {
-      console.log("transportclose")
-    })
   }, [params, producerTransport])
 
   const createRecvTransport = useCallback(async () => {
@@ -133,6 +124,11 @@ export default function useSignalingServer(roomId: string) {
   }, [])
 
   const connectRecvTransport = useCallback(async (newClientId: string) => {
+    if (!device) {
+      console.error("device is undefined in connectRecvTransport")
+      return
+    }
+
     const socket = socketRef.current
 
     if (!socket) {
@@ -141,11 +137,6 @@ export default function useSignalingServer(roomId: string) {
     }
 
     if (socket.readyState === WebSocket.OPEN) {
-      if (!device) {
-        console.log("device is undefined in connectRecvTransport")
-        return
-      }
-
       socket.send(JSON.stringify({
         event: OUTGOING_EVENT_NAMES.CONSUME_MEDIA,
         data: {
@@ -198,8 +189,6 @@ export default function useSignalingServer(roomId: string) {
           }
 
           case INCOMING_EVENT_NAMES.ROUTER_RTP_CAPABILITIES: {
-            console.log("router rtp capabilities: ", data.rtpCapabilities)
-
             setRtpCapabilities(data.rtpCapabilities)
 
             break;
@@ -214,7 +203,6 @@ export default function useSignalingServer(roomId: string) {
 
               const transport = device.createSendTransport(data.params)
               setProducerTransport(transport)
-              console.log("producerTransport created: ", transport)
 
               transport?.on(
                 'connect',
@@ -224,7 +212,6 @@ export default function useSignalingServer(roomId: string) {
                   errback: (e: Error) => void
                 ) => {
                   try {
-                    console.log('Producer transport has connected');
                     setIsProducerTransportConnected(true)
 
                     if (socket.readyState === WebSocket.OPEN) {
@@ -257,8 +244,6 @@ export default function useSignalingServer(roomId: string) {
                   errback: (e: Error) => void
                 ) => {
                   try {
-                    console.log('producing media');
-
                     if (socket.readyState === WebSocket.OPEN) {
                       socket.send(
                         JSON.stringify({
@@ -288,7 +273,6 @@ export default function useSignalingServer(roomId: string) {
 
               const transport = device.createRecvTransport(data.params)
               setConsumerTransport(transport)
-              console.log("consumerTransport created: ", transport)
 
               transport?.on(
                 'connect',
@@ -313,8 +297,6 @@ export default function useSignalingServer(roomId: string) {
                     }
 
                     callback();
-
-                    console.log('consumer tansport has connected');
                   } catch (error) {
                     errback(error as Error);
                   }
@@ -326,8 +308,6 @@ export default function useSignalingServer(roomId: string) {
 
           case INCOMING_EVENT_NAMES.NEW_PRODUCER_TRANSPORT_CREATED: {
             const { newClientId } = data
-            console.log("new producer connected: ", newClientId)
-
             connectRecvTransport(newClientId)
 
             break;
@@ -340,11 +320,6 @@ export default function useSignalingServer(roomId: string) {
             }
 
             const consumer = await consumerTransport.consume(data.params)
-            console.log("consuming media: ", consumer)
-
-            const { track } = consumer
-            console.log("track: ", track)
-
             setConsumerList((prev) => ({ ...prev, [data.params.producerId]: consumer }))
 
             if (socket.readyState === WebSocket.OPEN) {
@@ -359,8 +334,6 @@ export default function useSignalingServer(roomId: string) {
           }
 
           case INCOMING_EVENT_NAMES.EXISTING_CLIENTS_LIST: {
-            console.log("existing clents: ", data.existingClients)
-
             for (const client of data.existingClients) {
               connectRecvTransport(client)
             }
@@ -375,7 +348,6 @@ export default function useSignalingServer(roomId: string) {
             }
 
             triggerCallbackAcrossEventsRef.current({ id: data.id });
-            console.log("producing media")
 
             break;
           }
@@ -430,7 +402,7 @@ export default function useSignalingServer(roomId: string) {
         videoRef.current.srcObject = stream;
 
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play().then(() => console.log("playback started")).catch((err) => {
+          videoRef.current?.play().catch((err) => {
             console.error("Video play error", err);
           });
         };
