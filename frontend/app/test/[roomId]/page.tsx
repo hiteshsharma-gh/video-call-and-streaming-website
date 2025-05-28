@@ -41,6 +41,7 @@ export default function Room() {
   const [device, setDevice] = useState<Device | undefined>(undefined);
   const [rtpCapabilities, setRtpCapabilities] = useState<RtpCapabilities | undefined>(undefined)
   const [producerTransport, setProducerTransport] = useState<Transport | undefined>(undefined);
+  const [isProducerTransportConnected, setIsProducerTransportConnected] = useState<boolean>(false)
   const [consumerTransport, setConsumerTransport] = useState<Transport | undefined>(undefined);
   const [consumerList, setConsumerList] = useState<Record<string, Consumer>>({});
 
@@ -228,6 +229,7 @@ export default function Room() {
                 ) => {
                   try {
                     console.log('Producer transport has connected');
+                    setIsProducerTransportConnected(true)
 
                     if (socket.readyState === WebSocket.OPEN) {
                       socket.send(
@@ -397,9 +399,18 @@ export default function Room() {
   }, [rtpCapabilities, device, createDevice])
 
   useEffect(() => {
-    createSendTransport()
-    createRecvTransport()
-  }, [createRecvTransport])
+    if (device) {
+      createSendTransport()
+      createRecvTransport()
+    }
+  }, [createRecvTransport, device])
+
+  useEffect(() => {
+    if (device && producerTransport && params.track && !isProducerTransportConnected) {
+      setIsProducerTransportConnected(true)
+      connectSendTransport()
+    }
+  }, [device, producerTransport, params, isProducerTransportConnected, connectSendTransport])
 
   useEffect(() => {
     const newRefs: Record<string, RefObject<HTMLVideoElement | null>> = {};

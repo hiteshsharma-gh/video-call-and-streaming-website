@@ -247,7 +247,6 @@ export class SignalingServer {
                   }
 
                   const consumer = await client.consumerTransport?.consume({
-                    paused: true,
                     rtpCapabilities,
                     producerId: producer.id,
                   });
