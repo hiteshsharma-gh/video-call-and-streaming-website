@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "dev": "pnpm ts-node src/index.ts",
     "start": "pnpm tsc -b && node ./dist/index.js",

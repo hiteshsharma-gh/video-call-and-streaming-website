@@ -1,6 +1,6 @@
 import * as mediasoup from 'mediasoup';
 import type { types as MediasoupTypes } from 'mediasoup';
-import { MAX_NUMBER_OF_MEDIASOUP_WORKERS } from './constants';
+import { MAX_NUMBER_OF_MEDIASOUP_WORKERS } from './constants.js';
 
 export class Mediasoup {
   static workers: MediasoupTypes.Worker[] = [];

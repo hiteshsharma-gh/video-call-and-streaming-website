@@ -1,10 +1,10 @@
 import { Server } from 'http';
 import { WebSocketServer } from 'ws';
 import type { types as MediasoupTypes } from 'mediasoup';
-import { Mediasoup } from '../mediasoup/index';
-import { INCOMING_EVENT_NAMES, OUTGOING_EVENT_NAMES } from './constants';
+import { Mediasoup } from '../mediasoup/index.js';
+import { INCOMING_EVENT_NAMES, OUTGOING_EVENT_NAMES } from './constants.js';
 import { v4 as uuid } from 'uuid';
-import { ExtWebSocket } from './interface';
+import { ExtWebSocket } from './interface.js';
 
 export class SignalingServer {
   wss: WebSocketServer;

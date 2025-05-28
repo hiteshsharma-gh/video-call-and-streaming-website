@@ -1,6 +1,6 @@
 import express from 'express';
 import { Server } from 'http';
-import { SignalingServer } from './signaling/index';
+import { SignalingServer } from './signaling/index.js';
 import { config } from 'dotenv';
 import cors from 'cors';
 
