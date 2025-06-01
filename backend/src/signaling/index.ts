@@ -44,6 +44,37 @@ export class SignalingServer {
 
         socket.on('close', () => {
           console.log('client closed');
+          const client = this.clients.get(socket.id);
+          if (!client) {
+            console.error('Signaling Server ---- client is undefined on socket close');
+            return;
+          }
+
+          for (const user of this.clients.values()) {
+            if (user.roomId === client.roomId) {
+              if (!user.socket) {
+                console.error('Signaling Server ---- user socket is undefined on socket close');
+                return;
+              }
+
+              if (!user.producer) {
+                console.error('Signaling Server ---- producer not found');
+                return;
+              }
+              if (user.socket !== socket && user.socket.readyState === WebSocket.OPEN) {
+                user.socket.send(
+                  JSON.stringify({
+                    event: OUTGOING_EVENT_NAMES.DISCONNECT,
+                    data: {
+                      userId: user.socket.id,
+                      disconnectedClient: user.producer.id,
+                    },
+                  }),
+                );
+              }
+            }
+          }
+
           this.clients.delete(socket.id);
         });
 
@@ -177,7 +208,7 @@ export class SignalingServer {
                         JSON.stringify({
                           event: OUTGOING_EVENT_NAMES.NEW_PRODUCER_TRANSPORT_CREATED,
                           data: {
-                            newClientId: socket.id,
+                            newClientId: user.socket.id,
                           },
                         }),
                       );
@@ -228,6 +259,10 @@ export class SignalingServer {
               const { rtpCapabilities, producerId } = data;
               const producerClient = this.clients.get(producerId);
               const client = this.clients.get(socket.id);
+
+              if (producerClient?.socket?.id == client?.socket?.id) {
+                console.log('producer and client are same');
+              }
 
               if (!producerClient) {
                 console.error('producer client not found');
@@ -292,10 +327,6 @@ export class SignalingServer {
               });
 
               break;
-            }
-
-            case INCOMING_EVENT_NAMES.DISCONNECT: {
-              this.clients.delete(socket.id);
             }
           }
         });

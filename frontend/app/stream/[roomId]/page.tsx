@@ -10,7 +10,8 @@ export default function Room() {
   const { localVideoRef, videoRefs, consumerList } = useSignalingServer(roomId)
 
   return (
-    <main>
+    <main className="flex flex-col h-screen w-full justify-center items-center space-y-5">
+      <div>RoomId: {roomId}</div>
       < div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" >
         <Card>
           <CardContent>

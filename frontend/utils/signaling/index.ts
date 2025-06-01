@@ -152,7 +152,13 @@ export default function useSignalingServer(roomId: string) {
 
   useEffect(() => {
     if (!socketRef.current) {
-      socketRef.current = new WebSocket('ws://localhost:8000');
+      const url = process.env.NEXT_PUBLIC_WS_URL
+      if (!url) {
+        console.error("ws url not found")
+        return
+      }
+
+      socketRef.current = new WebSocket(url);
     }
   }, [])
 
@@ -184,6 +190,20 @@ export default function useSignalingServer(roomId: string) {
             }
 
             await startCamera()
+
+            break;
+          }
+
+          case INCOMING_EVENT_NAMES.DISCONNECT: {
+            setConsumerList((prev) => {
+              const { [data.disconnectedClient]: _, ...updated } = prev
+
+              console.log("user id: ", data.userId)
+              console.log("client to be removed from consumerlist: ", data.disconnectedClient)
+              console.log("existing client list: ", prev)
+              console.log("updated client list: ", updated)
+              return updated
+            })
 
             break;
           }

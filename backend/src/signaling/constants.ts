@@ -5,7 +5,6 @@ export const INCOMING_EVENT_NAMES = {
   PRODUCE_MEDIA: 'produce-media',
   CONSUME_MEDIA: 'consume-media',
   RESUME_CONSUME: 'resume-consuming-media',
-  DISCONNECT: 'disconnect',
 };
 
 export const OUTGOING_EVENT_NAMES = {
@@ -16,4 +15,5 @@ export const OUTGOING_EVENT_NAMES = {
   EXISTING_CLIENTS_LIST: 'existing-clients-list',
   PRODUCING_MEDIA: 'producing-media',
   CONSUMING_MEDIA: 'consuming-media',
+  DISCONNECT: 'disconnect',
 };

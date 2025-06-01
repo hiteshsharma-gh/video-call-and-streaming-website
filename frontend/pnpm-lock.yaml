@@ -20,6 +20,9 @@ importers:
       dotenv:
         specifier: ^16.5.0
         version: 16.5.0
+      hls.js:
+        specifier: ^1.6.2
+        version: 1.6.2
       lucide-react:
         specifier: ^0.511.0
         version: 0.511.0(react@19.1.0)
@@ -54,6 +57,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.1.7
+      '@types/hls.js':
+        specifier: ^1.0.0
+        version: 1.0.0
       '@types/node':
         specifier: ^20
         version: 20.17.47
@@ -496,6 +502,10 @@ packages:
 
   '@types/events@3.0.3':
     resolution: {integrity: sha512-trOc4AAUThEz9hapPtSd7wf5tiQKvTtu5b371UxXdTuqzIh0ArcRspRP0i0Viu+LXstIQ1z96t1nsPxT9ol01g==}
+
+  '@types/hls.js@1.0.0':
+    resolution: {integrity: sha512-EGY2QJefX+Z9XH4PAxI7RFoNqBlQEk16UpYR3kbr82CIgMX5SlMe0PjFdFV0JytRhyVPQCiwSyONuI6S1KdSag==}
+    deprecated: This is a stub types definition. hls.js provides its own type definitions, so you do not need this installed.
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -1220,6 +1230,9 @@ packages:
   hasown@2.0.2:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
+
+  hls.js@1.6.2:
+    resolution: {integrity: sha512-rx+pETSCJEDThm/JCm8CuadcAC410cVjb1XVXFNDKFuylaayHk1+tFxhkjvnMDAfqsJHxZXDAJ3Uc2d5xQyWlQ==}
 
   iana-hashes@1.1.0:
     resolution: {integrity: sha512-dNFf+NqkF9M1lSluGyHGZNwxdIc8tL++n12Fp3/pcW85jN0ZePP78KugTA16J/paPNlGANE6kUlw81OQs4ulLQ==}
@@ -2462,6 +2475,10 @@ snapshots:
 
   '@types/events@3.0.3': {}
 
+  '@types/hls.js@1.0.0':
+    dependencies:
+      hls.js: 1.6.2
+
   '@types/json-schema@7.0.15': {}
 
   '@types/json5@0.0.29': {}
@@ -3384,6 +3401,8 @@ snapshots:
   hasown@2.0.2:
     dependencies:
       function-bind: 1.1.2
+
+  hls.js@1.6.2: {}
 
   iana-hashes@1.1.0:
     dependencies:
