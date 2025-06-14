@@ -28,22 +28,22 @@ The project is a monorepo organized into two main parts:
 
 ./
 ├── backend/ # Node.js, Express, Mediasoup, WebSocket Signaling Server
-│ ├── src/
-│ │ ├── mediasoup/ # Mediasoup specific logic (workers, routers, transports)
-│ │ ├── signaling/ # WebSocket signaling logic
-│ │ └── index.ts # Backend server entry point
-│ ├── package.json
-│ └── tsconfig.json
+│   ├── src/
+│   │   ├── mediasoup/ # Mediasoup specific logic (workers, routers, transports)
+│   │   ├── signaling/ # WebSocket signaling logic
+│   │   └── index.ts # Backend server entry point
+│   ├── package.json
+│   └── tsconfig.json
 └── frontend/ # Next.js Client Application
-├── app/ # Next.js App Router (pages, layouts)
-│ ├── stream/
-│ │ ├── [roomId]/page.tsx # Dynamic room page
-│ │ └── page.tsx # Page to create/join a room
-│ └── watch/page.tsx # Placeholder for HLS watch page
-├── components/ # UI components (shadcn/ui)
-├── utils/ # Utility functions, including signaling client logic
-├── package.json
-└── tsconfig.json
+    ├── app/ # Next.js App Router (pages, layouts)
+    │   ├── stream/
+    │   │   ├── [roomId]/page.tsx # Dynamic room page
+    │   │   └── page.tsx # Page to create/join a room
+    │   └── watch/page.tsx # Placeholder for HLS watch page
+    ├── components/ # UI components (shadcn/ui)
+    ├── utils/ # Utility functions, including signaling client logic
+    ├── package.json
+    └── tsconfig.json
 
 ## Tech Stack
 
