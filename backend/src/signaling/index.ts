@@ -5,6 +5,7 @@ import { Mediasoup } from '../mediasoup/index.js';
 import { INCOMING_EVENT_NAMES, OUTGOING_EVENT_NAMES } from './constants.js';
 import { v4 as uuid } from 'uuid';
 import { ExtWebSocket } from './interface.js';
+import { HlsManager } from '../recording/index.js';
 
 export class SignalingServer {
   wss: WebSocketServer;
@@ -14,10 +15,13 @@ export class SignalingServer {
       socket?: ExtWebSocket;
       roomId?: string;
       router?: MediasoupTypes.Router;
+      ffmpegRtpPort?: number;
       consumers?: MediasoupTypes.Consumer[];
       producer?: MediasoupTypes.Producer;
+      ffmpegConsumer?: MediasoupTypes.Consumer;
       consumerTransport?: MediasoupTypes.WebRtcTransport;
       producerTransport?: MediasoupTypes.WebRtcTransport;
+      ffmpegPlainTransport?: MediasoupTypes.PlainTransport;
     }
   >;
   mediasoupClient: Mediasoup;
@@ -228,14 +232,36 @@ export class SignalingServer {
             case INCOMING_EVENT_NAMES.PRODUCE_MEDIA: {
               const { kind, rtpParameters } = data;
               const client = this.clients.get(socket.id);
-
-              if (!client?.producerTransport) {
-                console.error('Signaling Server ---- Producer transport not found');
+              if (!client) {
+                console.error('Signaling Server ---- client not found in produce media event');
+                return;
               }
 
-              const producer = await client?.producerTransport?.produce({ kind, rtpParameters });
+              if (!client.producerTransport) {
+                console.error('Signaling Server ---- Producer transport not found');
+                return;
+              }
+              const producer = await client.producerTransport?.produce({ kind, rtpParameters });
+
+              const recordingInstance = new HlsManager(this.mediasoupClient);
+
+              if (!client.roomId) {
+                console.error('Signaling Server ---- roomId not found');
+                return;
+              }
+              if (!client.router) {
+                console.error('Signaling Server ---- router not found');
+                return;
+              }
+              recordingInstance.startHlsStream(client.roomId, client.router, [producer], []);
 
               producer?.on('transportclose', () => {
+                if (!client.roomId) {
+                  console.error('Signaling Server ---- roomId not found');
+                  return;
+                }
+                recordingInstance.stopHlsStream(client.roomId);
+
                 producer.close();
               });
 

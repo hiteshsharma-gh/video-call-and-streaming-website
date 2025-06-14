@@ -196,6 +196,7 @@ export default function useSignalingServer(roomId: string) {
 
           case INCOMING_EVENT_NAMES.DISCONNECT: {
             setConsumerList((prev) => {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
               const { [data.disconnectedClient]: _, ...updated } = prev
 
               console.log("user id: ", data.userId)
