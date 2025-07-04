@@ -26,6 +26,7 @@ This project is a full-stack application demonstrating real-time video and audio
 
 The project is a monorepo organized into two main parts:
 
+```bash
 ./
 ├── backend/ # Node.js, Express, Mediasoup, WebSocket Signaling Server
 │   ├── src/
@@ -44,6 +45,7 @@ The project is a monorepo organized into two main parts:
     ├── utils/ # Utility functions, including signaling client logic
     ├── package.json
     └── tsconfig.json
+```
 
 ## Tech Stack
 
@@ -64,7 +66,8 @@ The project is a monorepo organized into two main parts:
 *   **Framework:** Next.js (v15+, App Router, Turbopack for dev)
 *   **Language:** TypeScript
 *   **UI Library:** React (v19+)
-*   **WebRTC Client:** `mediasoup-client`
+*   **WebRTC SFU Client:** `mediasoup-client`
+*   **Signaling** WebSockets
 *   **Styling:** Tailwind CSS
 *   **UI Components:** shadcn/ui
 *   **Package Manager:** PNPM
