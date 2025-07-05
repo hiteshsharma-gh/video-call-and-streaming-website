@@ -109,7 +109,7 @@ The project is a monorepo organized into two main parts:
     Navigate to the `backend` directory:
     ```bash
     cd backend
-    pnpm dev
+    pnpm start
     ```
     The backend server will start, typically on `http://localhost:8000` (or the port specified in your `backend/.env` file).
 

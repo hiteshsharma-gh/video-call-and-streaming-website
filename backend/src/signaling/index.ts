@@ -5,6 +5,7 @@ import { Mediasoup } from '../mediasoup/index.js';
 import { INCOMING_EVENT_NAMES, OUTGOING_EVENT_NAMES } from './constants.js';
 import { v4 as uuid } from 'uuid';
 import { ExtWebSocket } from './interface.js';
+import fs from 'fs';
 
 export class SignalingServer {
   wss: WebSocketServer;
@@ -242,63 +243,71 @@ export class SignalingServer {
               }
               const producer = await client.producerTransport?.produce({ kind, rtpParameters });
 
-              //               // Create PlainTransport for RTP output
-              //               const plainTransport = await client.router?.createPlainTransport({
-              //                 listenIp: { ip: '127.0.0.1', announcedIp: undefined },
-              //                 rtcpMux: false,
-              //                 comedia: false, // Set to false for consistent port binding
-              //               });
-              //
-              //               const videoPort = plainTransport?.tuple.localPort;
-              //               const videoRtcpPort = plainTransport?.rtcpTuple?.localPort;
-              //
-              //               // Connect the transport to send RTP to specific ports
-              //               await plainTransport?.connect({
-              //                 ip: '127.0.0.1',
-              //                 port: videoPort,
-              //                 rtcpPort: videoRtcpPort,
-              //               });
-              //
-              //               // Create consumer with proper RTP capabilities
-              //               await plainTransport?.consume({
-              //                 producerId: producer.id,
-              //                 rtpCapabilities: client.router!.rtpCapabilities!,
-              //               });
-              //
-              //               const sdp = `
-              // v=0
-              // o=- 0 0 IN IP4 127.0.0.1
-              // s=FFmpeg
-              // c=IN IP4 127.0.0.1
-              // t=0 0
-              // m=video ${videoPort} RTP/AVP ${producer.rtpParameters.codecs[0].payloadType}
-              // a=rtpmap:${producer.rtpParameters.codecs[0].payloadType} ${producer.rtpParameters.codecs[0].mimeType.split('/')[1]}/90000
-              // a=sendonly
-              //     `;
-              //
-              //               // Save this SDP content to a file, e.g., /tmp/stream.sdp
-              //               console.log('writing to sdp');
-              //               fs.writeFileSync('./stream.sdp', sdp);
-              //               console.log('writing complete to sdp');
-              //
-              //               console.log('PlainTransport created and connected');
-              //
-              //               if (!client.roomId) {
-              //                 console.error('Signaling Server ---- roomId not found');
-              //                 return;
-              //               }
-              //               if (!client.router) {
-              //                 console.error('Signaling Server ---- router not found');
-              //                 return;
-              //               }
-              // recordingInstance.startHlsStream(client.roomId, client.router, [producer], []);
+              const plainTransport = await client.router?.createPlainTransport({
+                listenIp: { ip: '127.0.0.1' },
+                rtcpMux: false,
+                comedia: false,
+              });
+
+              await plainTransport?.connect({
+                ip: '127.0.0.1',
+                port: 5004,
+                rtcpPort: 5005,
+              });
+
+              const consumer = await plainTransport?.consume({
+                producerId: producer.id,
+                rtpCapabilities: client.router!.rtpCapabilities!,
+              });
+
+              const FFMPEG_IP = '127.0.0.1'; // Or your server's IP
+              const FFMPEG_VIDEO_PORT = 5004;
+
+              let sdp = `v=0
+o=- 0 0 IN IP4 ${FFMPEG_IP}
+s=FFmpeg
+c=IN IP4 ${FFMPEG_IP}
+t=0 0
+`;
+
+              // Video Section
+              if (consumer) {
+                const vc = consumer.rtpParameters.codecs[0];
+                sdp += `m=video ${FFMPEG_VIDEO_PORT} RTP/AVP ${vc.payloadType}\n`;
+                sdp += `a=rtcp:${FFMPEG_VIDEO_PORT + 1}\n`;
+                // This line is CRITICAL. It gets the real codec name and clock rate.
+                sdp += `a=rtpmap:${vc.payloadType} ${vc.mimeType.split('/')[1]}/${vc.clockRate}\n`;
+                // This line includes other important codec parameters like packetization-mode.
+                if (vc.parameters) {
+                  const params = Object.entries(vc.parameters)
+                    .map(([key, value]) => `${key}=${value}`)
+                    .join(';');
+                  if (params) {
+                    sdp += `a=fmtp:${vc.payloadType} ${params}\n`;
+                  }
+                }
+              }
+
+              fs.writeFileSync('./src/signaling/stream.sdp', sdp);
+
+              await consumer?.requestKeyFrame();
+
+              console.log('PlainTransport created and connected');
+
+              if (!client.roomId) {
+                console.error('Signaling Server ---- roomId not found');
+                return;
+              }
+              if (!client.router) {
+                console.error('Signaling Server ---- router not found');
+                return;
+              }
 
               producer?.on('transportclose', () => {
                 if (!client.roomId) {
                   console.error('Signaling Server ---- roomId not found');
                   return;
                 }
-                // recordingInstance.stopHlsStream(client.roomId);
 
                 producer.close();
               });
