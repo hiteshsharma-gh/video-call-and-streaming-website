@@ -242,16 +242,55 @@ export class SignalingServer {
               }
               const producer = await client.producerTransport?.produce({ kind, rtpParameters });
 
-              // const recordingInstance = new HlsManager(this.mediasoupClient);
-
-              if (!client.roomId) {
-                console.error('Signaling Server ---- roomId not found');
-                return;
-              }
-              if (!client.router) {
-                console.error('Signaling Server ---- router not found');
-                return;
-              }
+              //               // Create PlainTransport for RTP output
+              //               const plainTransport = await client.router?.createPlainTransport({
+              //                 listenIp: { ip: '127.0.0.1', announcedIp: undefined },
+              //                 rtcpMux: false,
+              //                 comedia: false, // Set to false for consistent port binding
+              //               });
+              //
+              //               const videoPort = plainTransport?.tuple.localPort;
+              //               const videoRtcpPort = plainTransport?.rtcpTuple?.localPort;
+              //
+              //               // Connect the transport to send RTP to specific ports
+              //               await plainTransport?.connect({
+              //                 ip: '127.0.0.1',
+              //                 port: videoPort,
+              //                 rtcpPort: videoRtcpPort,
+              //               });
+              //
+              //               // Create consumer with proper RTP capabilities
+              //               await plainTransport?.consume({
+              //                 producerId: producer.id,
+              //                 rtpCapabilities: client.router!.rtpCapabilities!,
+              //               });
+              //
+              //               const sdp = `
+              // v=0
+              // o=- 0 0 IN IP4 127.0.0.1
+              // s=FFmpeg
+              // c=IN IP4 127.0.0.1
+              // t=0 0
+              // m=video ${videoPort} RTP/AVP ${producer.rtpParameters.codecs[0].payloadType}
+              // a=rtpmap:${producer.rtpParameters.codecs[0].payloadType} ${producer.rtpParameters.codecs[0].mimeType.split('/')[1]}/90000
+              // a=sendonly
+              //     `;
+              //
+              //               // Save this SDP content to a file, e.g., /tmp/stream.sdp
+              //               console.log('writing to sdp');
+              //               fs.writeFileSync('./stream.sdp', sdp);
+              //               console.log('writing complete to sdp');
+              //
+              //               console.log('PlainTransport created and connected');
+              //
+              //               if (!client.roomId) {
+              //                 console.error('Signaling Server ---- roomId not found');
+              //                 return;
+              //               }
+              //               if (!client.router) {
+              //                 console.error('Signaling Server ---- router not found');
+              //                 return;
+              //               }
               // recordingInstance.startHlsStream(client.roomId, client.router, [producer], []);
 
               producer?.on('transportclose', () => {
@@ -295,8 +334,8 @@ export class SignalingServer {
               }
 
               const { producer, router } = producerClient;
+              console.error('producer not found');
               if (!producer) {
-                console.error('producer not found');
                 return;
               }
 
