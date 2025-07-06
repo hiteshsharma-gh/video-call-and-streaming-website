@@ -1,12 +1,10 @@
 import express from 'express';
 import { Server } from 'http';
-import { SignalingServer } from './signaling/index.js';
-import { config } from 'dotenv';
+import { SignalingServer } from './signaling/index';
+import 'dotenv/config';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import path from 'path';
-
-config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -5,37 +5,37 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "pnpm ts-node src/index.ts",
-    "start": "rm -rf dist/ && pnpm tsc -b && node ./dist/index.js",
-    "lint:check": "npx prettier . --check",
-    "lint:fix": "pnpm exec prettier . --write"
+    "dev": "bun run ./src/index.ts --watch",
+    "start": "rm -rf ./dist; bun build ./src/index.ts --outdir dist --target bun; bun run ./dist/index.js",
+    "lint:check": "bunx prettier . --check",
+    "lint:fix": "bunx prettier . --write"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.11.0",
+  "packageManager": "pnpm@10.13.1",
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
+    "dotenv": "^17.2.0",
     "express": "^5.1.0",
-    "mediasoup": "^3.15.8",
+    "mediasoup": "^3.16.7",
     "uuid": "^11.1.0",
-    "ws": "^8.18.2"
+    "ws": "^8.18.3"
   },
   "devDependencies": {
-    "@eslint/js": "^9.27.0",
-    "@types/cors": "^2.8.18",
-    "@types/express": "^5.0.2",
+    "@eslint/js": "^9.31.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "@types/ws": "^8.18.1",
-    "@typescript-eslint/eslint-plugin": "^8.32.1",
-    "@typescript-eslint/parser": "^8.32.1",
-    "eslint": "^9.27.0",
-    "eslint-config-prettier": "^10.1.5",
-    "eslint-plugin-prettier": "^5.4.0",
-    "globals": "^16.1.0",
-    "prettier": "^3.5.3",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.32.1"
+    "typescript-eslint": "^8.38.0"
   }
 }
